@@ -39,13 +39,16 @@ Step 3. (Optional) Measure the final state.
 
 
 import random, pygame, sys
-from quantum_worm import *
 from pygame.locals import *
+
+from worm import Worm
+from quantum_worm import Quantumworm
+
+from board import Board
 
 FPS = 30
 
-# 16 squares = 256 positions. We can represent with 8 qubits.
-QUBITS = 8
+QUBITS = 8 # 16 squares = 256 positions. We can represent with 8 qubits.
 WINDOWWIDTH = 320
 WINDOWHEIGHT = 320
 CELLSIZE = 20
@@ -53,13 +56,6 @@ assert WINDOWWIDTH % CELLSIZE == 0, "Window width must be a multiple of cell siz
 assert WINDOWHEIGHT % CELLSIZE == 0, "Window height must be a multiple of cell size."
 CELLWIDTH = int(WINDOWWIDTH / CELLSIZE)
 CELLHEIGHT = int(WINDOWHEIGHT / CELLSIZE)
-
-SNAKES_GRID = [ [ 0 for y in range( CELLHEIGHT ) ]
-                    for x in range( CELLWIDTH ) ]
-
-
-
-
 
 #             R    G    B
 WHITE     = (255, 255, 255)
@@ -78,11 +74,8 @@ LEFT = 'left'
 RIGHT = 'right'
 valid_movements = [UP, LEFT, RIGHT, DOWN]
 
-HEAD = 0 # syntactic sugar: index of the worm's head
-
-SCORE_PLAYER_1 = FINAL_SCORE_1 = 0
-SCORE_PLAYER_2 = FINAL_SCORE_2 = 0
-
+FINAL_SCORE_1 = 0
+FINAL_SCORE_2 = 0
 
 def main():
     global FPSCLOCK, DISPLAYSURF, BASICFONT
@@ -101,29 +94,19 @@ def main():
 
 def runGame():
 
-    # Set a random start point.
-    startx = random.randint(4, CELLWIDTH - 8)
-    starty = random.randint(4, CELLHEIGHT - 8)
-    wormCoords = [{'x': startx,     'y': starty},
-                  {'x': startx - 1, 'y': starty},
-                  {'x': startx - 2, 'y': starty}]
-    direction = RIGHT
-    #SNAKES_GRID[startx][starty] = 1
-    #SNAKES_GRID[startx-1][starty] = 1
-    #SNAKES_GRID[startx-2][starty] = 1
+    global FINAL_SCORE_1, FINAL_SCORE_2
 
+    board = Board(CELLWIDTH, CELLHEIGHT)
+
+    # Set a random start point.
+    classicalWorm   = Worm('Classical', CELLWIDTH, CELLHEIGHT, RIGHT)
     # Our Quantum Adversary!
-    quantumCoordinates = quantumRandomStartingPoint(QUBITS)
-    print(quantumCoordinates)
-    startx = quantumCoordinates['x']
-    starty = quantumCoordinates['y']
-    qwormCoords = [{'x': startx,     'y': starty},
-                   {'x': startx + 1, 'y': starty},
-                   {'x': startx + 2, 'y': starty}]
-    qWormDirection = LEFT
-    #SNAKES_GRID[startx][starty] = 1
-    #SNAKES_GRID[startx+1][starty] = 1
-    #SNAKES_GRID[startx+2][starty] = 1
+    quantumWorm     = Quantumworm('Quantum', CELLWIDTH, CELLHEIGHT, LEFT, QUBITS)
+
+    for coordinates in classicalWorm.coordinates:
+        board.activateCollision(coordinates['x'], coordinates['y'])
+    for coordinates in quantumWorm.coordinates:
+        board.activateCollision(coordinates['x'], coordinates['y'])
 
     # Start the apple in a random place.
     apple = getRandomLocation()
@@ -147,122 +130,89 @@ def runGame():
                     terminate()
             """
 
-        direction = calculateRandomDirection(wormCoords, apple)
-        qWormDirection = calculateRandomDirection(qwormCoords, apple)
+        if classicalWorm.alive == 1:
+            direction = classicalWorm.calculateRandomDirection(apple, board)
+        if quantumWorm.alive == 1:
+            qWormDirection = quantumWorm.calculateRandomDirection(apple, board)
+
 
         # If we run out of possible directions, game over
         if(len(direction) == 0 or len(qWormDirection) == 0):
             print("--- Final scores: Death by no more directions ---")
-            storeResults(getScore(wormCoords), getScore(qwormCoords))
+            classicalWorm.storeResults()
+            quantumWorm.storeResults()
+            FINAL_SCORE_1 = classicalWorm.getScore()
+            FINAL_SCORE_2 = quantumWorm.getScore()
+            classicalWorm.die()
+            quamtumWorm.die()
             return # game over
 
         # move the worm by adding a segment in the direction it is moving
-        newHead = calculateNewMovement(wormCoords, direction)
-        qNewHead = calculateNewMovement(qwormCoords, qWormDirection)
-        wormCoords.insert(0, newHead)
-        qwormCoords.insert(0, qNewHead)
+        if classicalWorm.alive == 1:
+            newHead = classicalWorm.calculateNewMovement()
+            classicalWorm.growWorm(newHead)
+
+        if quantumWorm.alive == 1:
+            qNewHead = quantumWorm.calculateNewMovement()
+            quantumWorm.growWorm(qNewHead)
 
         DISPLAYSURF.fill(BGCOLOR)
         drawGrid()
-        drawWorm(wormCoords, 1)
-        drawWorm(qwormCoords, 2)
+        drawWorm(classicalWorm.coordinates, 1)
+        drawWorm(quantumWorm.coordinates, 2)
 
         # check if the worm has hit something or the edge
-        if (SNAKES_GRID[wormCoords[HEAD]['x']][wormCoords[HEAD]['y']] == 1):
+        if (classicalWorm.alive == 1 and board.getStatus(classicalWorm.coordinates[0]['x'], classicalWorm.coordinates[0]['y']) == 1):
             print("--- Final scores: Classical him himself ---")
-            storeResults(getScore(wormCoords), getScore(qwormCoords))
-            return # game over
-        elif (SNAKES_GRID[qwormCoords[HEAD]['x']][qwormCoords[HEAD]['y']] == 1):
-            print("--- Final scores: Quantum hit himself ---")
-            storeResults(getScore(wormCoords), getScore(qwormCoords))
-            return # game over
-        else:
-            SNAKES_GRID[newHead['x']][newHead['y']] = 1
-            SNAKES_GRID[qNewHead['x']][qNewHead['y']] = 1
+            classicalWorm.storeResults()
+            FINAL_SCORE_1 = classicalWorm.getScore()
+            classicalWorm.die()
 
+            for coordinate in classicalWorm.coordinates:
+                board.deactivateCollision(coordinate['x'], coordinate['y'])
+            classicalWorm.coordinates.clear()
+
+            if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+                return # game over
+        elif (quantumWorm.alive == 1 and board.getStatus(quantumWorm.coordinates[0]['x'], quantumWorm.coordinates[0]['y']) == 1):
+            print("--- Final scores: Quantum hit himself ---")
+            quantumWorm.storeResults()
+            FINAL_SCORE_2 = quantumWorm.getScore()
+            quantumWorm.die()
+
+            for coordinate in quantumWorm.coordinates:
+                board.deactivateCollision(coordinate['x'], coordinate['y'])
+            quantumWorm.coordinates.clear()
+
+            if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+                return # game over
+        else:
+            board.activateCollision(newHead['x'], newHead['y'])
+            board.activateCollision(qNewHead['x'], qNewHead['y'])
 
         # check if worm has eaten an apple
-        if wormCoords[HEAD]['x'] == apple['x'] and wormCoords[HEAD]['y'] == apple['y']:
-            # don't remove worm's tail segment
-            apple = getRandomLocation() # set a new apple somewhere
-        else:
-            SNAKES_GRID[wormCoords[-1]['x']][wormCoords[-1]['y']] = 0
-            del wormCoords[-1] # remove worm's tail segment
+        if (classicalWorm.alive == 1 and len(classicalWorm.coordinates) > 0) :
+            if classicalWorm.coordinates[0]['x'] == apple['x'] and classicalWorm.coordinates[0]['y'] == apple['y']:
+                # don't remove worm's tail segment
+                apple = getRandomLocation() # set a new apple somewhere
+            else:
+                board.deactivateCollision(classicalWorm.coordinates[-1]['x'], classicalWorm.coordinates[-1]['y'])
+                del classicalWorm.coordinates[-1] # remove worm's tail segment
 
         # check if Quantum worm has eaten an apple
-        if qwormCoords[HEAD]['x'] == apple['x'] and qwormCoords[HEAD]['y'] == apple['y']:
-            # don't remove worm's tail segment
-            apple = getRandomLocation() # set a new apple somewhere
-        else:
-            SNAKES_GRID[qwormCoords[-1]['x']][qwormCoords[-1]['y']] = 0
-            del qwormCoords[-1] # remove worm's tail segment
+        if (quantumWorm.alive == 1 and len(quantumWorm.coordinates) > 0) :
+            if quantumWorm.coordinates[0]['x'] == apple['x'] and quantumWorm.coordinates[0]['y'] == apple['y']:
+                # don't remove worm's tail segment
+                apple = getRandomLocation() # set a new apple somewhere
+            else:
+                board.deactivateCollision(quantumWorm.coordinates[-1]['x'], quantumWorm.coordinates[-1]['y'])
+                del quantumWorm.coordinates[-1] # remove worm's tail segment
 
         drawApple(apple)
-
-        drawScore(getScore(wormCoords), 1)
-        drawScore(getScore(qwormCoords), 2)
+        drawScore(classicalWorm.getScore(), 1)
+        drawScore(quantumWorm.getScore(), 2)
         pygame.display.update()
         FPSCLOCK.tick(FPS)
-
-def randomMovement(valid_movements):
-    return valid_movements[random.randint(0, len(valid_movements)-1)]
-
-def calculateRandomDirection(wormCoords, apple):
-
-    # Hack to make movements automatic
-    valid_movements = [UP, LEFT, RIGHT, DOWN]
-
-    # Add more random weight to tilt towards the apple
-    if(apple['x'] > wormCoords[HEAD]['x']):
-        valid_movements.append(RIGHT)
-    else:
-        valid_movements.append(LEFT)
-    if(apple['y'] < wormCoords[HEAD]['y']):
-        valid_movements.append(UP)
-    else:
-        valid_movements.append(DOWN)
-
-    # Avoid the walls
-    if wormCoords[HEAD]['x'] == 0:
-        valid_movements = list(filter(lambda a: a != LEFT, valid_movements))
-    if wormCoords[HEAD]['x'] >= CELLWIDTH-1:
-        valid_movements = list(filter(lambda a: a != RIGHT, valid_movements))
-    if wormCoords[HEAD]['y'] == 0:
-        valid_movements = list(filter(lambda a: a != UP, valid_movements))
-    if wormCoords[HEAD]['y'] >= CELLHEIGHT-1:
-        valid_movements = list(filter(lambda a: a != DOWN, valid_movements))
-
-    direction = randomMovement(valid_movements) # Get a random movement
-
-    change_direction = True
-    while(change_direction == True):
-        potentialNewHead = calculateNewMovement(wormCoords, direction)
-        if SNAKES_GRID[potentialNewHead['x']][potentialNewHead['y']] == 1:
-            change_direction = True
-            valid_movements = list(filter(lambda a: a != direction, valid_movements))   # Remove invalid direction from the list
-            if(len(valid_movements) == 0):
-                return direction
-            direction = randomMovement(valid_movements)
-        else:
-            change_direction = False
-
-        # If there is no solution we are stuck
-        if len(direction) == 0:
-            return direction
-
-    return direction
-
-def calculateNewMovement(wormCoords, direction):
-    if direction == UP:
-        newHead = {'x': wormCoords[HEAD]['x'], 'y': wormCoords[HEAD]['y'] - 1}
-    elif direction == DOWN:
-        newHead = {'x': wormCoords[HEAD]['x'], 'y': wormCoords[HEAD]['y'] + 1}
-    elif direction == LEFT:
-        newHead = {'x': wormCoords[HEAD]['x'] - 1, 'y': wormCoords[HEAD]['y']}
-    elif direction == RIGHT:
-        newHead = {'x': wormCoords[HEAD]['x'] + 1, 'y': wormCoords[HEAD]['y']}
-
-    return newHead
 
 def drawPressKeyMsg():
     pressKeySurf = BASICFONT.render('Press a key to play.', True, DARKGRAY)
@@ -322,6 +272,9 @@ def getRandomLocation():
 
 
 def showGameOverScreen():
+
+    global FINAL_SCORE_1, FINAL_SCORE_2
+
     gameOverFont = pygame.font.Font('freesansbold.ttf', 50)
     gameSurf = gameOverFont.render('Game', True, WHITE)
     overSurf = gameOverFont.render('Over', True, WHITE)
@@ -331,11 +284,7 @@ def showGameOverScreen():
     overRect.midtop = (WINDOWWIDTH / 2, gameRect.height + 10 + 25)
 
     drawScore(FINAL_SCORE_1, 1)
-    drawScore(FINAL_SCORE_1, 2)
-
-    # Reset collision grid
-    SNAKES_GRID = [ [ 0 for y in range( CELLHEIGHT ) ]
-                        for x in range( CELLWIDTH ) ]
+    drawScore(FINAL_SCORE_2, 2)
 
     DISPLAYSURF.blit(gameSurf, gameRect)
     DISPLAYSURF.blit(overSurf, overRect)
@@ -344,15 +293,14 @@ def showGameOverScreen():
     pygame.time.wait(500)
     checkForKeyPress() # clear out any key presses in the event queue
 
-
     while True:
         if checkForKeyPress():
             pygame.event.get() # clear event queue
             return
-        else:
-            pygame.time.wait(600)
-            pygame.event.get() # clear event queue
-            return
+        #else:
+        #    pygame.time.wait(600)
+        #    pygame.event.get() # clear event queue
+        #    return
 
 
 def drawScore(score, player):
@@ -363,7 +311,7 @@ def drawScore(score, player):
     if (player == 2):
         scoreSurf = BASICFONT.render('Quantum Worm: %s' % (score), True, DARKORANGE)
         scoreRect = scoreSurf.get_rect()
-        scoreRect.topright = (WINDOWWIDTH - 320, 40)
+        scoreRect.topleft = (WINDOWWIDTH - 320, 30)
     DISPLAYSURF.blit(scoreSurf, scoreRect)
 
 
@@ -375,13 +323,18 @@ def drawWorm(wormCoords, palette = 1):
         dark_color = DARKGREEN
         light_color = GREEN
 
+    i = 0
     for coord in wormCoords:
         x = coord['x'] * CELLSIZE
         y = coord['y'] * CELLSIZE
         wormSegmentRect = pygame.Rect(x, y, CELLSIZE, CELLSIZE)
         pygame.draw.rect(DISPLAYSURF, dark_color, wormSegmentRect)
         wormInnerSegmentRect = pygame.Rect(x + 4, y + 4, CELLSIZE - 8, CELLSIZE - 8)
-        pygame.draw.rect(DISPLAYSURF, light_color, wormInnerSegmentRect)
+        if i == 0:
+            pygame.draw.rect(DISPLAYSURF, dark_color, wormInnerSegmentRect)
+        else:
+            pygame.draw.rect(DISPLAYSURF, light_color, wormInnerSegmentRect)
+        i += 1
 
 
 def drawApple(coord):
@@ -397,12 +350,6 @@ def drawGrid():
     for y in range(0, WINDOWHEIGHT, CELLSIZE): # draw horizontal lines
         pygame.draw.line(DISPLAYSURF, DARKGRAY, (0, y), (WINDOWWIDTH, y))
 
-def getScore(worm):
-    return len(worm) - 3
-
-def storeResults(score_1, score_2):
-    print("Classical: %s" % score_1)
-    print("Quantum: %s" % score_2)
 
 if __name__ == '__main__':
     main()
