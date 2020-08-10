@@ -33,7 +33,8 @@ class Quantumworm(Worm):
 	def randomQuantumMovement(self, valid_movements):
 
 		# Potential valid movements: L, R, U, L+R (superposition), TOWARDS_APPLE_X * 2, TOWARDS_APPLE_Y  * 2--> 8 possibilities --> 3 qubits
-		valid_movements.append(SPLIT_LR)
+		# Limit superposition to avoid crushing the board
+		if(len(self.heads)<4): valid_movements.append(SPLIT_LR)
 
 		# For the moment it takes a naive pure random approach. Therefore the quantum worm is "dumber" than the classical
 		qc = QuantumCircuit(3)
@@ -53,9 +54,8 @@ class Quantumworm(Worm):
 		print(valid_movements[result])
 		return valid_movements[result]
 
-	def calculateNewQuantumMovement(self, head):
+	def calculateNewQuantumMovement(self, head, board):
 
-		newHead2 = False
 		heads = []
 
 		if head['direction'] == UP:
@@ -72,11 +72,31 @@ class Quantumworm(Worm):
 			heads.append(newHead)
 
 		elif head['direction'] == SPLIT_LR:
-			newHead = {'x': head['x'] + 1, 'y': head['y'], 'direction': LEFT, 'probability': head['probability'] * 0.5}
-			newHead2 = {'x': head['x'] - 1, 'y': head['y'], 'direction': RIGHT, 'probability': head['probability'] * 0.5}
-			heads.append(newHead)
-			heads.append(newHead2)
+			# Check the three possibilities and grow wherever there is space.
+			splitted_heads = []
+			if (board.getStatus(head['x'] + 1, head['y']) <= 1):
+				newHead = {'x': head['x'] + 1, 'y': head['y'], 'direction': LEFT, 'probability': head['probability'] * 0.5}
+				splitted_heads.append(newHead)
+			if (board.getStatus(head['x'] - 1, head['y']) <= 1):
+				newHead = {'x': head['x'] - 1, 'y': head['y'], 'direction': RIGHT, 'probability': head['probability'] * 0.5}
+				splitted_heads.append(newHead)
+			if (board.getStatus(head['x'], head['y'] - 1) <= 1):
+				newHead = {'x': head['x'], 'y': head['y'] - 1, 'direction': UP, 'probability': head['probability'] * 0.5}
+				splitted_heads.append(newHead)
+			if (board.getStatus(head['x'], head['y'] + 1) <= 1):
+				newHead = {'x': head['x'], 'y': head['y'] + 1, 'direction': DOWN, 'probability': head['probability'] * 0.5}
+				splitted_heads.append(newHead)
 
+			for splitted_head in splitted_heads:
+				splitted_head['probability'] = 1/len(splitted_heads)
+			print("==================")
+			print("NEW SPLITTED HEADS")
+			print(splitted_heads)
+			heads += splitted_heads
+
+
+		print("RESULT OF CALCULATE QuantumWormMovement")
+		print(heads)
 		return heads
 
 	def calculateQuantumRandomDirection(self, apple, board):
@@ -122,7 +142,7 @@ class Quantumworm(Worm):
 				change_direction = True
 
 				while(change_direction == True):
-					potentialNewHead = self.calculateNewQuantumMovement(head)[0]
+					potentialNewHead = self.calculateNewQuantumMovement(head, board)[0]
 					print("------------------------")
 					print("Q TRY NO SPLIT HEAD")
 					print(head)
@@ -148,7 +168,7 @@ class Quantumworm(Worm):
 
 			## We need to consider whether we are taking a single direction, or we got a quantum split
 			elif (head['direction'] in [SPLIT_LR]):
-				potentialNewHeads = self.calculateNewQuantumMovement(head)
+				potentialNewHeads = self.calculateNewQuantumMovement(head, board)
 				print("------------------------")
 				print("Q POTENTIAL HEADS: ")
 				print(potentialNewHeads)
@@ -179,18 +199,25 @@ class Quantumworm(Worm):
 		for head in self.heads:
 			print("GROW FOR HEAD: ")
 			print(head)
-			if (board.getStatus(head['x'], head['y']) == 1):
+			if (board.getStatus(head['x'], head['y']) >= 1):
 				print("HEAD IMPACTED BOARD: ")
 				print(head)
 				board.printGrid()
+			elif (board.getStatus(head['x'], head['y']) > head['probability']):
+				# The head has come back to the snake. We don't kill it but we stop from reproducing. Unless it is the last surviving one
+				print("HEAD IMPACTED ITSELF WITH PROBABABILITY: ")
+				print(head)
+				board.activateCollision(head['x'], head['y'], head['probability'])
+				self.coordinates.insert(0, head)
 			else:
 				print("SAFE HEAD")
 				new_heads.append(head)
 				self.coordinates.insert(0, head)
 
 		self.heads = new_heads
-		print("TOTAL NEW HEADS:")
-		print(self.heads)
+		if(len(self.heads) == 0):
+			self.storeResults()
+			self.die()
 
 	def getHeads(self):
 		return self.heads

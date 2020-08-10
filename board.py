@@ -22,5 +22,7 @@ class Board:
     def printGrid(self):
         for r in self.collision_grid:
             for c in r:
-                print(c, end = " ")
+                print("%.2f" % c, end = " ")
+            print()
+            print()
             print()

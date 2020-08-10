@@ -56,18 +56,22 @@ class Worm:
 
     def die(self):
         self.alive = 0
+        self.coordinates.clear()
 
     def live(self):
         self.alive = 1
 
     def getScore(self):
-        if len(self.coordinates) == 0:
-            return self.score
-        else:
-            self.score = len(self.coordinates) - self.initial_lenght
-            return self.score
+        return self.score
+
+    def setScore(self, score):
+        self.score = score
+        return self.score
 
     def storeResults(self):
+        print("===================")
+        print("-------------------")
+        print("FINAL SCORE FOR %s" % self.name)
         print("%s: %s" % (self.name, self.getScore()))
 
     def calculateRandomDirection(self, apple, board):
@@ -101,7 +105,7 @@ class Worm:
         change_direction = True
         while(change_direction == True):
             potentialNewHead = self.calculateNewMovement()
-            if (board.getStatus(potentialNewHead['x'], potentialNewHead['y']) == 1):
+            if (board.getStatus(potentialNewHead['x'], potentialNewHead['y']) > 0):
                 change_direction = True
                 valid_movements = list(filter(lambda a: a != self.direction, valid_movements))   # Remove invalid direction from the list
                 if(len(valid_movements) == 0):

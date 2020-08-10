@@ -46,7 +46,7 @@ from quantum_worm import Quantumworm
 
 from board import Board
 
-FPS = 0.5
+FPS = 15
 
 QUBITS = 8 # 16 squares = 256 positions. We can represent with 8 qubits.
 WINDOWWIDTH = 320
@@ -65,7 +65,7 @@ GREEN     = (  0, 255,   0)
 DARKGREEN = (  0, 155,   0)
 DARKGRAY  = ( 40,  40,  40)
 ORANGE    = (255, 165,   0)
-DARKORANGE  = (180, 64, 16)
+DARKRED  =  (140, 0, 0)
 BGCOLOR = BLACK
 
 UP = 'up'
@@ -106,7 +106,7 @@ def runGame():
     for coordinates in classicalWorm.coordinates:
         board.activateCollision(coordinates['x'], coordinates['y'])
     for coordinates in quantumWorm.coordinates:
-        board.activateCollision(coordinates['x'], coordinates['y'])
+        board.activateCollision(coordinates['x'], coordinates['y'], coordinates['probability'])
 
     # Start the apple in a random place.
     apple = getRandomLocation()
@@ -130,6 +130,12 @@ def runGame():
                     terminate()
             """
 
+        if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+            return # game over
+        else:
+            FINAL_SCORE_1 = classicalWorm.getScore()
+            FINAL_SCORE_2 = quantumWorm.getScore()
+
         if classicalWorm.alive == 1:
             wormDirection = classicalWorm.calculateRandomDirection(apple, board)
         if quantumWorm.alive == 1:
@@ -146,7 +152,8 @@ def runGame():
                 board.deactivateCollision(coordinate['x'], coordinate['y'])
             classicalWorm.coordinates.clear()
 
-            if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+            if classicalWorm.alive == 0 and (quantumWorm.alive == 0 or len(quantumWorm.heads) == 0):
+                board.printGrid()
                 return # game over
 
         # If we run out of possible directions, game over
@@ -162,6 +169,7 @@ def runGame():
                     quantumWorm.coordinates.clear()
 
                     if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+                        board.printGrid()
                         return # game over
                 else:
                     quantumWorm.killHeadWithoutDirection()
@@ -176,18 +184,15 @@ def runGame():
             print("GROWING QUANTUM WORM ")
             total_heads = []
             for head in quantumWorm.heads:
-                qNewHeads = quantumWorm.calculateNewQuantumMovement(head)
+                qNewHeads = quantumWorm.calculateNewQuantumMovement(head, board)
                 total_heads += qNewHeads
             quantumWorm.heads = total_heads
             quantumWorm.growQuantumWorm(board)
 
-        DISPLAYSURF.fill(BGCOLOR)
-        drawGrid()
-        drawWorm(classicalWorm.coordinates, 1)
-        drawWorm(quantumWorm.coordinates, 2)
+
 
         # check if the worm has hit something or the edge
-        if (classicalWorm.alive == 1 and board.getStatus(classicalWorm.coordinates[0]['x'], classicalWorm.coordinates[0]['y']) == 1):
+        if (classicalWorm.alive == 1 and board.getStatus(classicalWorm.coordinates[0]['x'], classicalWorm.coordinates[0]['y']) > 0):
             print("--- Final scores: Classical him himself ---")
             classicalWorm.storeResults()
             FINAL_SCORE_1 = classicalWorm.getScore()
@@ -199,24 +204,22 @@ def runGame():
 
             if classicalWorm.alive == 0 and quantumWorm.alive == 0:
                 return # game over
-        else:
+        elif(len(classicalWorm.coordinates) > 0):
             board.activateCollision(classicalWorm.coordinates[0]['x'], classicalWorm.coordinates[0]['y'])
 
-        print("---------------")
-        print("HEADS TO CHECK: ")
-        print(quantumWorm.heads)
         for qWormHead in quantumWorm.heads:
-            if (quantumWorm.alive == 1 and board.getStatus(qWormHead['x'], qWormHead['y']) == 1):
+            if (quantumWorm.alive == 1 and board.getStatus(qWormHead['x'], qWormHead['y']) >= 1):
                 print("--- Final scores: Quantum hit himself with Head:  ---")
                 print(qWormHead)
                 print(board.printGrid())
                 quantumWorm.storeResults()
                 FINAL_SCORE_2 = quantumWorm.getScore()
-                quantumWorm.die()
 
-                for coordinate in quantumWorm.coordinates:
-                    board.deactivateCollision(coordinate['x'], coordinate['y'])
-                quantumWorm.coordinates.clear()
+                if(len(quantumWorm.heads) <= 1):
+                    quantumWorm.die()
+                    for coordinate in quantumWorm.coordinates:
+                        board.deactivateCollision(coordinate['x'], coordinate['y'])
+                    quantumWorm.coordinates.clear()
 
                 if classicalWorm.alive == 0 and quantumWorm.alive == 0:
                     return # game over
@@ -224,13 +227,17 @@ def runGame():
                 board.activateCollision(qWormHead['x'], qWormHead['y'], qWormHead['probability'])
 
 
-
+        DISPLAYSURF.fill(BGCOLOR)
+        drawGrid()
+        drawWorm(classicalWorm.coordinates, 1)
+        drawWorm(quantumWorm.coordinates, 2)
 
         # check if worm has eaten an apple
         if (classicalWorm.alive == 1 and len(classicalWorm.coordinates) > 0) :
             if classicalWorm.coordinates[0]['x'] == apple['x'] and classicalWorm.coordinates[0]['y'] == apple['y']:
                 # don't remove worm's tail segment
                 apple = getRandomLocation() # set a new apple somewhere
+                classicalWorm.setScore(classicalWorm.getScore() + 1)
             else:
                 board.deactivateCollision(classicalWorm.coordinates[-1]['x'], classicalWorm.coordinates[-1]['y'])
                 del classicalWorm.coordinates[-1] # remove worm's tail segment
@@ -240,6 +247,7 @@ def runGame():
             if quantumWorm.coordinates[0]['x'] == apple['x'] and quantumWorm.coordinates[0]['y'] == apple['y']:
                 # don't remove worm's tail segment
                 apple = getRandomLocation() # set a new apple somewhere
+                quantumWorm.setScore(quantumWorm.getScore() + 1)
             else:
                 board.deactivateCollision(quantumWorm.coordinates[-1]['x'], quantumWorm.coordinates[-1]['y'])
                 del quantumWorm.coordinates[-1] # remove worm's tail segment
@@ -322,6 +330,12 @@ def showGameOverScreen():
     drawScore(FINAL_SCORE_1, 1)
     drawScore(FINAL_SCORE_2, 2)
 
+    file  = open("results.csv", "a")
+    file.write("Classical: %s , Quantum: %s" % (FINAL_SCORE_1, FINAL_SCORE_2))
+    file.write("\n")
+    file.close()
+
+
     DISPLAYSURF.blit(gameSurf, gameRect)
     DISPLAYSURF.blit(overSurf, overRect)
     drawPressKeyMsg()
@@ -345,7 +359,7 @@ def drawScore(score, player):
         scoreRect = scoreSurf.get_rect()
         scoreRect.topleft = (WINDOWWIDTH - 320, 10)
     if (player == 2):
-        scoreSurf = BASICFONT.render('Quantum Worm: %s' % (score), True, DARKORANGE)
+        scoreSurf = BASICFONT.render('Quantum Worm: %s' % (score), True, DARKRED)
         scoreRect = scoreSurf.get_rect()
         scoreRect.topleft = (WINDOWWIDTH - 320, 30)
     DISPLAYSURF.blit(scoreSurf, scoreRect)
@@ -353,8 +367,8 @@ def drawScore(score, player):
 
 def drawWorm(wormCoords, palette = 1):
     if palette == 2:
-        dark_color = DARKORANGE
-        light_color = ORANGE
+        dark_color = DARKRED
+        light_color = RED
     else:
         dark_color = DARKGREEN
         light_color = GREEN
@@ -365,6 +379,13 @@ def drawWorm(wormCoords, palette = 1):
         y = coord['y'] * CELLSIZE
 
 
+        if ('probability' in coord and coord['probability'] > 0):
+            if(coord['probability'] < 0.05):
+                alpha = 245
+            else:
+                alpha = 255-(255 * coord['probability'])
+            light_color = (255, alpha, alpha)
+
 
         wormSegmentRect = pygame.Rect(x, y, CELLSIZE, CELLSIZE)
         pygame.draw.rect(DISPLAYSURF, dark_color, wormSegmentRect)
@@ -374,14 +395,6 @@ def drawWorm(wormCoords, palette = 1):
         else:
             pygame.draw.rect(DISPLAYSURF, light_color, wormInnerSegmentRect)
         i += 1
-
-        if ('probability' in coord and coord['probability'] > 0):
-            s = pygame.Surface((CELLSIZE-8,CELLSIZE-8))  # the size of your rect
-            alpha = 255 * coord['probability']
-            if (alpha < 20): alpha = 20
-            s.set_alpha(alpha)                # alpha level
-            s.fill((255,255,255))           # this fills the entire surface
-            DISPLAYSURF.blit(s, (x+4,y+4))    # (0,0) are the top-left coordinates
 
 
 def drawApple(coord):
