@@ -46,7 +46,7 @@ from quantum_worm import Quantumworm
 
 from board import Board
 
-FPS = 30
+FPS = 0.5
 
 QUBITS = 8 # 16 squares = 256 positions. We can represent with 8 qubits.
 WINDOWWIDTH = 320
@@ -131,21 +131,40 @@ def runGame():
             """
 
         if classicalWorm.alive == 1:
-            direction = classicalWorm.calculateRandomDirection(apple, board)
+            wormDirection = classicalWorm.calculateRandomDirection(apple, board)
         if quantumWorm.alive == 1:
-            qWormDirection = quantumWorm.calculateRandomDirection(apple, board)
+            qWormDirections = quantumWorm.calculateQuantumRandomDirection(apple, board)
 
 
         # If we run out of possible directions, game over
-        if(len(direction) == 0 or len(qWormDirection) == 0):
-            print("--- Final scores: Death by no more directions ---")
+        if(classicalWorm.alive == 1 and len(wormDirection) == 0):
+            print("--- Final scores: Classical Worm has nowhere to go ---")
             classicalWorm.storeResults()
-            quantumWorm.storeResults()
             FINAL_SCORE_1 = classicalWorm.getScore()
-            FINAL_SCORE_2 = quantumWorm.getScore()
             classicalWorm.die()
-            quamtumWorm.die()
-            return # game over
+            for coordinate in classicalWorm.coordinates:
+                board.deactivateCollision(coordinate['x'], coordinate['y'])
+            classicalWorm.coordinates.clear()
+
+            if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+                return # game over
+
+        # If we run out of possible directions, game over
+        for qWormDirection in qWormDirections:
+            if(quantumWorm.alive == 1 and len(qWormDirection) == 0):
+                if(len(quantumWorm.heads) == 1):
+                    print("--- Final scores: Quantum Worm has nowhere to go ---")
+                    quantumWorm.storeResults()
+                    FINAL_SCORE_2 = quantumWorm.getScore()
+                    quantumWorm.die()
+                    for coordinate in quantumWorm.coordinates:
+                        board.deactivateCollision(coordinate['x'], coordinate['y'])
+                    quantumWorm.coordinates.clear()
+
+                    if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+                        return # game over
+                else:
+                    quantumWorm.killHeadWithoutDirection()
 
         # move the worm by adding a segment in the direction it is moving
         if classicalWorm.alive == 1:
@@ -153,8 +172,14 @@ def runGame():
             classicalWorm.growWorm(newHead)
 
         if quantumWorm.alive == 1:
-            qNewHead = quantumWorm.calculateNewMovement()
-            quantumWorm.growWorm(qNewHead)
+            print("------------------------")
+            print("GROWING QUANTUM WORM ")
+            total_heads = []
+            for head in quantumWorm.heads:
+                qNewHeads = quantumWorm.calculateNewQuantumMovement(head)
+                total_heads += qNewHeads
+            quantumWorm.heads = total_heads
+            quantumWorm.growQuantumWorm(board)
 
         DISPLAYSURF.fill(BGCOLOR)
         drawGrid()
@@ -174,21 +199,32 @@ def runGame():
 
             if classicalWorm.alive == 0 and quantumWorm.alive == 0:
                 return # game over
-        elif (quantumWorm.alive == 1 and board.getStatus(quantumWorm.coordinates[0]['x'], quantumWorm.coordinates[0]['y']) == 1):
-            print("--- Final scores: Quantum hit himself ---")
-            quantumWorm.storeResults()
-            FINAL_SCORE_2 = quantumWorm.getScore()
-            quantumWorm.die()
-
-            for coordinate in quantumWorm.coordinates:
-                board.deactivateCollision(coordinate['x'], coordinate['y'])
-            quantumWorm.coordinates.clear()
-
-            if classicalWorm.alive == 0 and quantumWorm.alive == 0:
-                return # game over
         else:
-            board.activateCollision(newHead['x'], newHead['y'])
-            board.activateCollision(qNewHead['x'], qNewHead['y'])
+            board.activateCollision(classicalWorm.coordinates[0]['x'], classicalWorm.coordinates[0]['y'])
+
+        print("---------------")
+        print("HEADS TO CHECK: ")
+        print(quantumWorm.heads)
+        for qWormHead in quantumWorm.heads:
+            if (quantumWorm.alive == 1 and board.getStatus(qWormHead['x'], qWormHead['y']) == 1):
+                print("--- Final scores: Quantum hit himself with Head:  ---")
+                print(qWormHead)
+                print(board.printGrid())
+                quantumWorm.storeResults()
+                FINAL_SCORE_2 = quantumWorm.getScore()
+                quantumWorm.die()
+
+                for coordinate in quantumWorm.coordinates:
+                    board.deactivateCollision(coordinate['x'], coordinate['y'])
+                quantumWorm.coordinates.clear()
+
+                if classicalWorm.alive == 0 and quantumWorm.alive == 0:
+                    return # game over
+            else:
+                board.activateCollision(qWormHead['x'], qWormHead['y'], qWormHead['probability'])
+
+
+
 
         # check if worm has eaten an apple
         if (classicalWorm.alive == 1 and len(classicalWorm.coordinates) > 0) :
@@ -280,8 +316,8 @@ def showGameOverScreen():
     overSurf = gameOverFont.render('Over', True, WHITE)
     gameRect = gameSurf.get_rect()
     overRect = overSurf.get_rect()
-    gameRect.midtop = (WINDOWWIDTH / 2, 10)
-    overRect.midtop = (WINDOWWIDTH / 2, gameRect.height + 10 + 25)
+    gameRect.midtop = (WINDOWWIDTH / 2, 30)
+    overRect.midtop = (WINDOWWIDTH / 2, gameRect.height + 30 + 25)
 
     drawScore(FINAL_SCORE_1, 1)
     drawScore(FINAL_SCORE_2, 2)
@@ -297,10 +333,10 @@ def showGameOverScreen():
         if checkForKeyPress():
             pygame.event.get() # clear event queue
             return
-        #else:
-        #    pygame.time.wait(600)
-        #    pygame.event.get() # clear event queue
-        #    return
+        else:
+            pygame.time.wait(3000)
+            pygame.event.get() # clear event queue
+            return
 
 
 def drawScore(score, player):
@@ -327,6 +363,9 @@ def drawWorm(wormCoords, palette = 1):
     for coord in wormCoords:
         x = coord['x'] * CELLSIZE
         y = coord['y'] * CELLSIZE
+
+
+
         wormSegmentRect = pygame.Rect(x, y, CELLSIZE, CELLSIZE)
         pygame.draw.rect(DISPLAYSURF, dark_color, wormSegmentRect)
         wormInnerSegmentRect = pygame.Rect(x + 4, y + 4, CELLSIZE - 8, CELLSIZE - 8)
@@ -335,6 +374,14 @@ def drawWorm(wormCoords, palette = 1):
         else:
             pygame.draw.rect(DISPLAYSURF, light_color, wormInnerSegmentRect)
         i += 1
+
+        if ('probability' in coord and coord['probability'] > 0):
+            s = pygame.Surface((CELLSIZE-8,CELLSIZE-8))  # the size of your rect
+            alpha = 255 * coord['probability']
+            if (alpha < 20): alpha = 20
+            s.set_alpha(alpha)                # alpha level
+            s.fill((255,255,255))           # this fills the entire surface
+            DISPLAYSURF.blit(s, (x+4,y+4))    # (0,0) are the top-left coordinates
 
 
 def drawApple(coord):

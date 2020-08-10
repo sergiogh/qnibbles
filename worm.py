@@ -37,8 +37,10 @@ class Worm:
         self.coordinates.insert(0, coordinates)
 
     def randomMovement(self, valid_movements):
-        return valid_movements[random.randint(0, len(valid_movements)-1)]
-
+        if len(valid_movements) == 1:
+            return valid_movements[0]
+        else:
+            return valid_movements[random.randint(0, len(valid_movements)-1)]
 
     def calculateNewMovement(self):
         if self.direction == UP:
@@ -103,13 +105,13 @@ class Worm:
                 change_direction = True
                 valid_movements = list(filter(lambda a: a != self.direction, valid_movements))   # Remove invalid direction from the list
                 if(len(valid_movements) == 0):
-                    return self.direction
+                    return ''
                 self.direction = self.randomMovement(valid_movements)
             else:
                 change_direction = False
 
             # If there is no solution we are stuck
             if len(self.direction) == 0:
-                return self.direction
+                return ''
 
         return self.direction
