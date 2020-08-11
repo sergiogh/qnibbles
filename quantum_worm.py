@@ -217,7 +217,7 @@ class Quantumworm(Worm):
 		self.heads = new_heads
 		if(len(self.heads) == 0):
 			self.storeResults()
-			self.die()
+			self.die(board)
 
 	def getHeads(self):
 		return self.heads

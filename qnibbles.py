@@ -112,6 +112,10 @@ def runGame():
     apple = getRandomLocation()
 
     while True: # main game loop
+
+        DISPLAYSURF.fill(BGCOLOR)
+        drawGrid()
+
         # Key control
         for event in pygame.event.get(): # event handling loop
             if event.type == QUIT:
@@ -130,51 +134,22 @@ def runGame():
                     terminate()
             """
 
+        ## STEP 1: Check if there is any worm alive. If not, save scores and kill game loop
         if classicalWorm.alive == 0 and quantumWorm.alive == 0:
             return # game over
         else:
             FINAL_SCORE_1 = classicalWorm.getScore()
             FINAL_SCORE_2 = quantumWorm.getScore()
 
+
+        ## STEP 2: Calculate directions for each snake (and each head for the quantum snake)
         if classicalWorm.alive == 1:
             wormDirection = classicalWorm.calculateRandomDirection(apple, board)
         if quantumWorm.alive == 1:
             qWormDirections = quantumWorm.calculateQuantumRandomDirection(apple, board)
 
 
-        # If we run out of possible directions, game over
-        if(classicalWorm.alive == 1 and len(wormDirection) == 0):
-            print("--- Final scores: Classical Worm has nowhere to go ---")
-            classicalWorm.storeResults()
-            FINAL_SCORE_1 = classicalWorm.getScore()
-            classicalWorm.die()
-            for coordinate in classicalWorm.coordinates:
-                board.deactivateCollision(coordinate['x'], coordinate['y'])
-            classicalWorm.coordinates.clear()
-
-            if classicalWorm.alive == 0 and (quantumWorm.alive == 0 or len(quantumWorm.heads) == 0):
-                board.printGrid()
-                return # game over
-
-        # If we run out of possible directions, game over
-        for qWormDirection in qWormDirections:
-            if(quantumWorm.alive == 1 and len(qWormDirection) == 0):
-                if(len(quantumWorm.heads) == 1):
-                    print("--- Final scores: Quantum Worm has nowhere to go ---")
-                    quantumWorm.storeResults()
-                    FINAL_SCORE_2 = quantumWorm.getScore()
-                    quantumWorm.die()
-                    for coordinate in quantumWorm.coordinates:
-                        board.deactivateCollision(coordinate['x'], coordinate['y'])
-                    quantumWorm.coordinates.clear()
-
-                    if classicalWorm.alive == 0 and quantumWorm.alive == 0:
-                        board.printGrid()
-                        return # game over
-                else:
-                    quantumWorm.killHeadWithoutDirection()
-
-        # move the worm by adding a segment in the direction it is moving
+        ## STEP 3: Grow the worm in the calculated direction
         if classicalWorm.alive == 1:
             newHead = classicalWorm.calculateNewMovement()
             classicalWorm.growWorm(newHead)
@@ -189,15 +164,19 @@ def runGame():
             quantumWorm.heads = total_heads
             quantumWorm.growQuantumWorm(board)
 
+        ## And paint the worms
+        drawWorm(classicalWorm.coordinates, 1)
+        drawWorm(quantumWorm.coordinates, 2)
 
 
+        ## STEP 4: Check if either of the worms has hit something. If so, kill it (or the quantum head if he has splitted)
         # check if the worm has hit something or the edge
         if (classicalWorm.alive == 1 and board.getStatus(classicalWorm.coordinates[0]['x'], classicalWorm.coordinates[0]['y']) > 0):
             print("--- Final scores: Classical him himself ---")
             classicalWorm.storeResults()
             FINAL_SCORE_1 = classicalWorm.getScore()
-            classicalWorm.die()
-
+            classicalWorm.die(board)
+            board.printGrid()
             for coordinate in classicalWorm.coordinates:
                 board.deactivateCollision(coordinate['x'], coordinate['y'])
             classicalWorm.coordinates.clear()
@@ -211,12 +190,12 @@ def runGame():
             if (quantumWorm.alive == 1 and board.getStatus(qWormHead['x'], qWormHead['y']) >= 1):
                 print("--- Final scores: Quantum hit himself with Head:  ---")
                 print(qWormHead)
-                print(board.printGrid())
+                board.printGrid()
                 quantumWorm.storeResults()
                 FINAL_SCORE_2 = quantumWorm.getScore()
 
                 if(len(quantumWorm.heads) <= 1):
-                    quantumWorm.die()
+                    quantumWorm.die(board)
                     for coordinate in quantumWorm.coordinates:
                         board.deactivateCollision(coordinate['x'], coordinate['y'])
                     quantumWorm.coordinates.clear()
@@ -227,11 +206,7 @@ def runGame():
                 board.activateCollision(qWormHead['x'], qWormHead['y'], qWormHead['probability'])
 
 
-        DISPLAYSURF.fill(BGCOLOR)
-        drawGrid()
-        drawWorm(classicalWorm.coordinates, 1)
-        drawWorm(quantumWorm.coordinates, 2)
-
+        ## STEP 5: Check if any of the worms has eaten an apple. If so, increase score. Otherwise remove one square at the end (it does not grow)
         # check if worm has eaten an apple
         if (classicalWorm.alive == 1 and len(classicalWorm.coordinates) > 0) :
             if classicalWorm.coordinates[0]['x'] == apple['x'] and classicalWorm.coordinates[0]['y'] == apple['y']:
@@ -252,6 +227,7 @@ def runGame():
                 board.deactivateCollision(quantumWorm.coordinates[-1]['x'], quantumWorm.coordinates[-1]['y'])
                 del quantumWorm.coordinates[-1] # remove worm's tail segment
 
+        ## STEP 6: Draw the apple again, and update scores in the board. Add one frame. The show goes on!
         drawApple(apple)
         drawScore(classicalWorm.getScore(), 1)
         drawScore(quantumWorm.getScore(), 2)
