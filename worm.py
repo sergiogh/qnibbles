@@ -58,7 +58,7 @@ class Worm:
         self.alive = 0
         # Remove collision points in the board for the whole worm
         for coordinate in self.coordinates:
-            boatd.deactivateCollision(coordinate['x'], coordinate['y'])
+            board.deactivateCollision(coordinate['x'], coordinate['y'])
         self.coordinates.clear()
 
     def live(self):
