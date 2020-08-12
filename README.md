@@ -4,7 +4,8 @@ QNibbles
 A Quantum implementation of the old QBASIC Game, then made famous by the Nokia 3310 phone
 ===================
 
-
+### Welcome to QNibbles!
+![Screenshot](docs/qnibbles.png)
 
 
 
